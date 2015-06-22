@@ -1,6 +1,7 @@
 import scikits.audiolab as al
 import numpy as np
-import os, re
+import math, os, re
+from scipy import signal
 
 audio_path = "audio_assignment/"
 
@@ -12,21 +13,25 @@ def aad():
         sounds.append(read_file(path))
     for sound in sounds:
         thresholds.append(threshods(sound))
-        
-def thresholds(x):
+
+def thresholds(x, samplerate=8000):
     window_len = 10
     frame_ms = 10
-    x, frame_size = frames(x)
+    x, frame_size = frames(x, samplerate, frame_ms)
     x = log_energy(x, frame_size)
     smooth = np.r_[x[window_len-1:0:-1],x,x[-1:-window_len:-1]]
     w = np.hamming(window_len)
     smooth = np.convolve(w/w.sum(),smooth,mode='valid')
     W_ms = 1.0e4 # 1*10^4
-    W_len = W_ms/frame_ms*(1000.0/samplerate)
-    t = np.zeros_like(x)
+    W_len = int(math.floor(W_ms/frame_ms*(1000.0/samplerate)))
+    t = np.zeros_like(smooth)
+    m = signal.argrelextrema(smooth, np.less, order=W_len/2)
+    w = np.ones(W_len)
+    a = np.convolve(w/w.sum(),smooth,mode='same')
+    print(m)
+    print(t.shape, m.shape, a.shape)
     for i in range(len(smooth)):
-        e = np.r_[smooth[W_len-1:0:-1], smooth, smooth[-1:-W_len:-1]]
-        t[i] = min(e)+max(2, 0.7*sum(e)/(len(e)-min(e)))
+        t[i] = m[i]+max(2, 0.7*(a[i]-m[i]))
     return smooth, t
 
 def log_energy(signal, frame_size=80):

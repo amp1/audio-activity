@@ -28,7 +28,7 @@ def thresholds(x, samplerate=8000, noise_diff=0.3, db_scale=0.6, min_scale=1):
     W_ms = 5.0e3 # 1*10^4
     W_len = int(math.floor(W_ms/frame_ms*(1000.0/samplerate)))
     t = np.zeros_like(smooth)
-    m = signal.argrelmin(smooth, order=W_len*3)[0]
+    m = signal.argrelmin(smooth, order=W_len)[0]
     w = np.ones(W_len*4)
     a = np.convolve(w/w.sum(),smooth,mode='same')
     j=0
@@ -38,32 +38,34 @@ def thresholds(x, samplerate=8000, noise_diff=0.3, db_scale=0.6, min_scale=1):
             j += 1
         if j == 0 or j == (len(m)-1):
             min_pos = m[j]
-        elif abs(m[j]-i) < abs(m[j-1]-i):
+        elif abs(m[j]-i) <= abs(m[j-1]-i):
             min_pos = m[j]
         else:
             min_pos = m[j-1]
         lmin[i] = smooth[min_pos]
-    window_len = W_len*2
+    window_len = W_len*3
     w = np.hamming(window_len)
-    lmin = np.r_[lmin[window_len-1:0:-1], lmin, lmin[-1:-window_len:-1]]
-    min_smooth = np.convolve(w/w.sum(),lmin,mode='same')
+    lm2 = np.r_[lmin[window_len-1:0:-1], lmin, lmin[-1:-window_len:-1]]
+    min_smooth = np.convolve(w/w.sum(),lm2,mode='valid')
+    lmin = min_smooth
     for i in range(len(t)):
-        t[i] = np.average(min_smooth)+(min_scale*min_smooth[i])+max(noise_diff, db_scale*(a[i]-min_smooth[i]))
+        #t[i] = (np.average(lmin)+min_scale*lmin[i])+max(noise_diff, db_scale*(a[i]-lmin[i]))
         #t[i] = min_smooth[i]+max(noise_diff, db_scale*(a[i]-min_smooth[i]))
-    return x, smooth, a, t, min_smooth
+        t[i] = min_scale*(np.average(min_smooth)+min_smooth[i])+max(noise_diff, db_scale*(a[i]-min_smooth[i]))
+    return x, smooth, a, t, lmin
 
-def get_segments(x, smooth, a, t, min_len=30):
+def get_segments(x, t, min_len=40):
     indexes = []
     segment = []
-    for i in range(1, len(smooth)):
-        if smooth[i] >= t[i] and smooth[i-1] < t[i-1]:
+    for i in range(1, len(x)):
+        if x[i] >= t[i] and x[i-1] < t[i-1]:
             segment.append(i)
             if(len(segment)==2):
                 if segment[1]-segment[0] > min_len :
                     indexes.append(segment[0])
                     indexes.append(segment[1])
                 segment=[]
-        elif smooth[i] < t[i] and smooth[i-1] >= t[i-1]:
+        elif x[i] < t[i] and x[i-1] >= t[i-1]:
             segment.append(i)
             if(len(segment)==2):
                 if segment[1]-segment[0] > min_len :
@@ -73,7 +75,7 @@ def get_segments(x, smooth, a, t, min_len=30):
     return indexes
 
 def plot(x, smooth, a, t, lmin):
-    my_segments = get_segments(x, smooth, a, t)
+    my_segments = get_segments(smooth, t)
     plt.vlines(my_segments, -7, -12, color='orange')
     segments = []
     with open(segment_path) as sf:

@@ -1,11 +1,12 @@
 import scikits.audiolab as al
+import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.pyplot as plt
 import math, os, re
 from scipy import signal
 
 audio_path = "audio_assignment/"
-segment_file = "audio_assignment/segments.txt"
+segment_path = "audio_assignment/segments.txt"
 
 def aad():
     files = filelist(audio_path)
@@ -16,54 +17,75 @@ def aad():
     for sound in sounds:
         thresholds.append(threshods(sound))
 
-def thresholds(x, samplerate=8000, db_ceil=0.25, db_scale=0.5):
+def thresholds(x, samplerate=8000, noise_diff=0.3, db_scale=0.6, min_scale=1):
     window_len = 10
     frame_ms = 10
     x, frame_size = frames(x, samplerate, frame_ms)
     x = log_energy(x, frame_size)
-    smooth = np.r_[x[window_len-1:0:-1],x,x[-1:-window_len:-1]]
+    smooth = np.r_[x[window_len-1:0:-1], x, x[-1:-window_len:-1]]
     w = np.hamming(window_len)
     smooth = np.convolve(w/w.sum(),smooth,mode='valid')
-    W_ms = 1.0e4 # 1*10^4
+    W_ms = 5.0e3 # 1*10^4
     W_len = int(math.floor(W_ms/frame_ms*(1000.0/samplerate)))
     t = np.zeros_like(smooth)
-    m = signal.argrelmin(smooth, order=W_len)[0]
-    y = np.ones
-    w = np.ones(W_len*2)
-    #w = np.hamming(W_len*2)
+    m = signal.argrelmin(smooth, order=W_len*3)[0]
+    w = np.ones(W_len*4)
     a = np.convolve(w/w.sum(),smooth,mode='same')
     j=0
+    lmin = np.zeros_like(smooth)
     for i in range(len(smooth)):
-        if i > m[j] and j < len(m)-1:
+        if i > m[j] and j<len(m)-1:
             j += 1
-        if j == 0 or j == len(m)-1:
-            lmin = smooth[m[j]]
+        if j == 0 or j == (len(m)-1):
+            min_pos = m[j]
         elif abs(m[j]-i) < abs(m[j-1]-i):
-            lmin = smooth[m[j]]
+            min_pos = m[j]
         else:
-            lmin = smooth[m[j-1]]
-        #t[i] = lmin+max(db_ceil, 0.7*(a[i]-lmin))
-        t[i] = lmin+max(db_ceil,db_scale*(a[i]-lmin))#+0.5*(a[i]-lmin)
-    return x, smooth, a, t
+            min_pos = m[j-1]
+        lmin[i] = smooth[min_pos]
+    window_len = W_len*2
+    w = np.hamming(window_len)
+    lmin = np.r_[lmin[window_len-1:0:-1], lmin, lmin[-1:-window_len:-1]]
+    min_smooth = np.convolve(w/w.sum(),lmin,mode='same')
+    for i in range(len(t)):
+        t[i] = np.average(min_smooth)+(min_scale*min_smooth[i])+max(noise_diff, db_scale*(a[i]-min_smooth[i]))
+        #t[i] = min_smooth[i]+max(noise_diff, db_scale*(a[i]-min_smooth[i]))
+    return x, smooth, a, t, min_smooth
 
-def classify(x, t):
-    x = np.vstack((x,t))
-    return np.apply_along_axis(lambda y: int(y[0] >= y[1]), 0, x)
+def get_segments(x, smooth, a, t, min_len=30):
+    indexes = []
+    segment = []
+    for i in range(1, len(smooth)):
+        if smooth[i] >= t[i] and smooth[i-1] < t[i-1]:
+            segment.append(i)
+            if(len(segment)==2):
+                if segment[1]-segment[0] > min_len :
+                    indexes.append(segment[0])
+                    indexes.append(segment[1])
+                segment=[]
+        elif smooth[i] < t[i] and smooth[i-1] >= t[i-1]:
+            segment.append(i)
+            if(len(segment)==2):
+                if segment[1]-segment[0] > min_len :
+                    indexes.append(segment[0])
+                    indexes.append(segment[1])
+                segment=[]
+    return indexes
 
-def plot(x, smooth, a, t):
-    #plt.plot(x)
-    #plt.plot(a, color='lightblue')
-    plt.plot(smooth, color='blue')
-    with open(segment_file, 'r') as f:
-        lines = []
-        for l in f.readlines():
+def plot(x, smooth, a, t, lmin):
+    my_segments = get_segments(x, smooth, a, t)
+    plt.vlines(my_segments, -7, -12, color='orange')
+    segments = []
+    with open(segment_path) as sf:
+        for l in sf.readlines():
             l = l.split('\t')
-            st, en, i = float(l[0])*100, float(l[1])*100, l[2]
-            lines.append(st)
-            lines.append(en)
-        print(lines)
-        plt.vlines(lines, -5, -11, color='grey')
+            segments.append(float(l[0])*100)
+            segments.append(float(l[1])*100)
+        plt.vlines(segments, -7, -12, color='black', linestyles='dashed')
+    plt.plot(smooth, color='blue')
     plt.plot(t, color='red')
+    plt.plot(lmin, color='pink')
+    plt.plot(a, color='yellow')
     plt.show()
 
 def log_energy(signal, frame_size=80):

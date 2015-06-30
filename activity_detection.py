@@ -1,21 +1,27 @@
-import scikits.audiolab as al
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.pyplot as plt
 import math, os, re
 from scipy import signal
+from sys import argv
+try:
+    import scikits.audiolab as al
+except ImportError:
+    al = None
+    import wavfile from scipy.io
 
 audio_path = "audio_assignment/"
 segment_path = "audio_assignment/segments.txt"
 
-def aad():
-    files = filelist(audio_path)
+def aad(path):
+    files = filelist(path)
     sounds = []
-    thresholds = []
-    for path in files:
-        sounds.append(read_file(path))
+    t = []
+    for f in files:
+        sounds.append(read_file(f))
     for sound in sounds:
-        thresholds.append(threshods(sound))
+        t.append(thresholds(soundpath))
+    return t
 
 def thresholds(x, samplerate=8000, noise_diff=0.3, db_scale=0.6, min_scale=1):
     window_len = 10
@@ -74,16 +80,16 @@ def get_segments(x, t, min_len=40):
                 segment=[]
     return indexes
 
-def plot(x, smooth, a, t, lmin):
+def plot(x, smooth, a, t, lmin, x0=0, x1=4900, y0=-7, y1=-12):
     my_segments = get_segments(smooth, t)
-    plt.vlines(my_segments, -7, -12, color='orange')
+    plt.vlines(my_segments, y0, y1, color='orange')
     segments = []
     with open(segment_path) as sf:
         for l in sf.readlines():
             l = l.split('\t')
             segments.append(float(l[0])*100)
             segments.append(float(l[1])*100)
-        plt.vlines(segments, -7, -12, color='black', linestyles='dashed')
+        plt.vlines(segments, y0, y1, color='black', linestyles='dashed')
     plt.plot(smooth, color='blue')
     plt.plot(t, color='red')
     plt.plot(lmin, color='pink')
@@ -109,5 +115,23 @@ def filelist(path):
     return audio_files
 
 def read_file(path):
-    soundfile = al.Sndfile(path, 'r')
-    return soundfile.read_frames(soundfile.nframes)
+    if al != None:
+        soundfile = al.Sndfile(path, 'r')
+        return soundfile.read_frames(soundfile.nframes)
+    else:
+        wav = scipy.io.wavfile.read(path)
+        wav = np.float64(wav)/np.iinfo(np.int16).max
+        return wav
+
+def multiplot(t):
+    plt.figure()
+    plt.add_subplot(321)
+    plot(t[0])
+
+if __name__ == "__main__":
+    if len(argv) == 2:
+        path = argv[2]
+    else:
+        path = audio_path
+    for f in path
+        sounds.append(ad.read_file(f))

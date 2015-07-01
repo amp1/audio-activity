@@ -181,7 +181,7 @@ def read_file(path):
         return soundfile.read_frames(soundfile.nframes)
     else:
         try:
-            wav = scipy.io.wavfile.read(path)
+            wav = wavfile.read(path)[1]
             wav = np.float64(wav)/np.iinfo(np.int16).max
             return wav
         except ValueError:

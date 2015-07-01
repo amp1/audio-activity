@@ -24,17 +24,16 @@ def highpass(x, N=4, samplerate=8000, cutoff=100):
     b, a = signal.butter(N, Wn, 'high')
     return signal.filtfilt(b, a, x)
 
-def thresholds(x, samplerate=8000, noise_dist=0.3, a_scale=0.6, min_scale=0.1, W_ms=1e4, smoothed_min = False):
+def thresholds(x, samplerate=8000, noise_dist=0.3, a_scale=0.6, min_scale=0.1, W_ms=10, smoothed_min = False):
     window_len = 10
     frame_ms = 10
     #x = highpass(x)
-    padding = np.zeros(window_len)+1e-6
     x, frame_size = frames(x, samplerate, frame_ms)
     x = log_energy(x, frame_size)
     smooth = np.r_[x[window_len-1:0:-1], x, x[-1:-window_len:-1]]
     w = np.hamming(window_len)
     smooth = np.convolve(w/w.sum(),smooth,mode='valid')
-    W_len = int(math.floor(W_ms/frame_ms*(1000.0/samplerate)))
+    W_len = int(math.floor(W_ms*1e3/frame_ms*(1000.0/samplerate)))
     w = np.ones(W_len*2,'d')
     padd_y = np.abs(np.amin(smooth))
     a = np.convolve(w/w.sum(),smooth+padd_y,mode='same')

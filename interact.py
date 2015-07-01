@@ -6,4 +6,6 @@ import numpy as np
 
 sounds = []
 for path in ad.filelist(ad.audio_path):
-    sounds.append(ad.read_file(path))
+    sound = ad.read_file(path)
+    if sound != None:
+        sounds.append(sound)

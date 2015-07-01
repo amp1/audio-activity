@@ -13,15 +13,15 @@ except ImportError:
 
 audio_path = "audio_assignment/"
 segment_path = "audio_assignment/segments.txt"
-result_path = "audio_assignment/generated_segments.txt"
+result_path = "audio_assignment/"
 
 def thresholds(x, samplerate=8000, noise_dist=0.9, a_scale=0.5, min_scale=0.25, W_ms=2000, smoothed_min = False):
-    """ """
+    """ Generate log energies, smoothed log energies, their thresholds, local averages and minimums"""
     #x = highpass(x)
     window_len = 10 # size of window used for initial smoothing, n of frames ~ 1ms
-    x, frame_size = frames(x, samplerate, 10) # split signal to 2-D array with a frame on each row
+    x, frame_size = frames(x, samplerate, 10) # split signal to 2-D array with a frame on each row ~1ms
     x = log_energy(x, frame_size)
-    smooth = smooth_signal(x, 10) #initial smoothing of signal
+    smooth = smooth_signal(x, 10) #initial smoothing of signal with ~10ms window
     W_len = int(math.floor(W_ms*(1000.0/samplerate)))
     a = average(smooth, W_len)
     lmin, min_smooth = local_min_array(smooth, W_len)
@@ -34,13 +34,31 @@ def thresholds(x, samplerate=8000, noise_dist=0.9, a_scale=0.5, min_scale=0.25, 
         t[i] = min_a-(min_scale*min_a)+(min_scale*lmin[i])+max(noise_dist, a_scale*(a[i]-lmin[i]))
     return x, smooth, a, t, lmin
 
+def frames(sound, samplerate=8000, frame_ms=10):
+    """ Frames as 2-D numpy.array, no windowing """
+    period = 1000.0/samplerate
+    frame_size = int(frame_ms/period)
+    padding = frame_size-(len(sound)%frame_size)
+    zerolevel = np.average(sound)
+    #margin = np.zeros(100*frame_size).clip(min=cliplevel)
+    sound = np.append(sound, np.repeat(zerolevel, padding))
+    #sound = np.append(margin, sound)
+    #sound = np.append(sound, margin)
+    return np.reshape(sound, (-1, frame_size)), frame_size
+
+def log_energy(signal, frame_size=80):
+    return np.sum(np.log10((signal**2).clip(1e-30)), 1)/frame_size
+
 def smooth_signal(x, window_len):
     """ Smooth (average) signal with a hamming window """
     w = np.hamming(window_len)
-    padd_y = np.abs(np.amin(x))
+    #padd_y = np.abs(np.amin(x))
+    #smooth = np.r_[x[window_len-1:0:-1], x, x[-1:-window_len:-1]]
+    #smooth = np.convolve(w/w.sum(),smooth+padd_y,mode='same')
     smooth = np.r_[x[window_len-1:0:-1], x, x[-1:-window_len:-1]]
-    smooth = np.convolve(w/w.sum(),smooth+padd_y,mode='same')
-    return smooth - padd_y
+    smooth = np.convolve(w/w.sum(),smooth,mode='valid')
+    #return smooth - padd_y
+    return smooth
 
 def average(x, W_len):
     """ Get moving average of signal """
@@ -126,7 +144,7 @@ def get_voice_segments(x, t, indexes):
 
 def write_segments(segments, path=None):
     if path == None:
-        path = result_path
+        path = result_path+"generated_segments.txt"
     with open(path, "w") as f:
         for i in range(len(segments)):
             print("\t".join((str(segments[i][0]/100.0), str(segments[i][1]/100.0), str(i))), file=f)
@@ -150,21 +168,6 @@ def plot(x, smooth, a, t, lmin, min_len=30, y0=-2, y1=-8, ax=None):
     p.plot(lmin, color='pink')
     p.plot(a, color='lightgreen')
 
-def log_energy(signal, frame_size=80):
-    return np.sum(np.log10((signal**2).clip(1e-30)), 1)/frame_size
-
-def frames(sound, samplerate=8000, frame_ms=10):
-    """ Frames as 2-D numpy.array, no windowing """
-    period = 1000.0/samplerate
-    frame_size = int(frame_ms/period)
-    padding = frame_size-(len(sound)%frame_size)
-    zerolevel = np.average(sound)
-    #margin = np.zeros(100*frame_size).clip(min=cliplevel)
-    sound = np.append(sound, np.repeat(zerolevel, padding))
-    #sound = np.append(margin, sound)
-    #sound = np.append(sound, margin)
-    return np.reshape(sound, (-1, frame_size)), frame_size
-
 def filelist(path):
     audio_files = []
     for fn in os.listdir(path):
@@ -184,40 +187,59 @@ def read_file(path):
         except ValueError:
             return None
 
-def multiplot(sounds, min_scale = 0.3, min_distance = 1, a_scale = 0.5, W_ms = 2000, min_len = 30):
+def run_batch(sounds, min_scale = 0.3, min_distance = 1, a_scale = 0.5, W_ms = 2000, min_len = 30):
     fig = plt.figure()
     ax = fig.add_subplot(321)
+    name0 = filelist(audio_path)[0]
+    name1 = filelist(audio_path)[1]
+
     ax.axis([0, 4870, -8, -2])
-    ax.set_title(filelist(audio_path)[0]+", localcal_min*0.3")
-    plot(*thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms), min_len=min_len, ax=ax)
+    ax.set_title(name0+", local_min*0.3")
+    x, smooth, a, t, lmin = thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
+    plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
+    write_segments(get_voice_segments(smooth, t, get_segment_indexes(smooth, t, min_len=10)),
+        name0+".txt")
     ax = fig.add_subplot(322)
+
     ax.axis([0, 4870, -8, -2])
-    ax.set_title(filelist(audio_path)[1]+", local_min*0.3")
-    plot(*thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms), min_len=min_len, ax=ax)
+    ax.set_title(name1+", local_min*0.3")
+    x, smooth, a, t, lmin = thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
+    plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
+    write_segments(
+        get_voice_segments(smooth, t, get_segment_indexes(smooth, t, min_len=10)),
+        name1+".txt")
     ax = fig.add_subplot(323)
+
     ax.axis([0, 4870, -8, -2])
-    ax.set_title(filelist(audio_path)[0]+"local_min*0")
-    plot(*thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=0, W_ms=W_ms), min_len=min_len, ax=ax)
+    ax.set_title(filelist(audio_path)[0]+", local_min*0")
+    x, smooth, a, t, lmin = thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=0, W_ms=W_ms)
+    plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
     ax = fig.add_subplot(324)
+    
     ax.axis([0, 4870, -8, -2])
-    ax.set_title(filelist(audio_path)[1]+"local_min*0")
-    plot(*thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=0, W_ms=W_ms), min_len=min_len, ax=ax)
+    ax.set_title(filelist(audio_path)[1]+", local_min*0")
+    x, smooth, a, t, lmin = thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=0, W_ms=W_ms)
+    plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
     ax = fig.add_subplot(325)
+
     ax.axis([3500, 4500, -8, -2])
-    ax.set_title(filelist(audio_path)[0]+"zoomed in, local_min*0.3")
-    plot(*thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms), min_len=min_len, ax=ax)
+    ax.set_title(filelist(audio_path)[0]+", zoomed in, local_min*0.3")
+    x, smooth, a, t, lmin = thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
+    plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
     ax = fig.add_subplot(326)
+
     ax.axis([3500, 4500, -8, -2])
-    ax.set_title(filelist(audio_path)[1]+"zoomed in, local_min*0.3")
-    plot(*thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms), min_len=min_len, ax=ax)
+    ax.set_title(filelist(audio_path)[1]+", zoomed in, local_min*0.3")
+    x, smooth, a, t, lmin = thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
+    plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
     plt.show()
 
 if __name__ == "__main__":
     if len(argv) == 2:
-        audio_path = argv[2]
+        audio_path = argv[1]
     sounds = []
     for f in filelist(audio_path):
-        sound = ad.read_file(f)
+        sound = read_file(f)
         if sound != None:
             sounds.append(sound)
-    multiplot(sounds)
+    run_batch(sounds)

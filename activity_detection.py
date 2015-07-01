@@ -35,7 +35,7 @@ def thresholds(x, samplerate=8000, noise_dist=0.9, a_scale=0.5, min_scale=0.25, 
     return x, smooth, a, t, lmin
 
 def frames(sound, samplerate=8000, frame_ms=10):
-    """ Frames as 2-D numpy.array, no windowing """
+    """ Frames as 2-D numpy.array, no window function """
     period = 1000.0/samplerate
     frame_size = int(frame_ms/period)
     padding = frame_size-(len(sound)%frame_size)
@@ -50,8 +50,8 @@ def log_energy(signal, frame_size=80):
     return np.sum(np.log10((signal**2).clip(1e-30)), 1)/frame_size
 
 def smooth_signal(x, window_len):
-    """ Smooth (average) signal with a hamming window """
-    w = np.hamming(window_len)
+    """ Smooth (average) signal with a hanning window """
+    w = np.hanning(window_len)
     #padd_y = np.abs(np.amin(x))
     #smooth = np.r_[x[window_len-1:0:-1], x, x[-1:-window_len:-1]]
     #smooth = np.convolve(w/w.sum(),smooth+padd_y,mode='same')

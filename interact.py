@@ -1,8 +1,13 @@
+from __future__ import print_function
 import activity_detection as ad
-import scikits.audiolab as al
 from matplotlib.pyplot import *
 from scipy import signal
 import numpy as np
+try:
+    import scikits.audiolab as al
+except ImportError:
+    al = None
+    from scipy.io import wavfile
 
 sounds = []
 for path in ad.filelist(ad.audio_path):

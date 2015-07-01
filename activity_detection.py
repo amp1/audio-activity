@@ -181,6 +181,7 @@ def read_file(path):
         return soundfile.read_frames(soundfile.nframes)
     else:
         try:
+            print("Warning: no audiolab. Trying to read WAV: "+path)
             wav = wavfile.read(path)[1]
             wav = np.float64(wav)/np.iinfo(np.int16).max
             return wav

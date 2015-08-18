@@ -15,7 +15,19 @@ audio_path = "audio_assignment/"
 segment_path = "audio_assignment/segments.txt"
 result_path = "audio_assignment/"
 
-def thresholds(x, samplerate=8000, noise_dist=0.9, a_scale=0.5, min_scale=0.25, W_ms=2000, smoothed_min = False):
+#Relative spectral entropy
+def RSE(signal, samplerate=8000):
+    w_len = 10 # frame size
+    signal, frame_size = frames(signal, samplerate, 10)
+    smooth = smooth_signal(signal, 10) #initial smoothing of signal with a 10 frame win
+    fft = np.fft2(smooth)
+
+#Long term spectral divergence
+def LTSD(signal, samplerate=8000)
+    w_len = 10
+    signal, frame_size = frames(signal, samplerate, 10)
+
+def energy_thresholds(x, samplerate=8000, noise_dist=0.9, a_scale=0.5, min_scale=0.25, W_ms=2000, smoothed_min = False):
     """ Generate log energies, smoothed log energies, their thresholds, local averages and minimums"""
     #x = highpass(x)
     window_len = 10 # size of window used for initial smoothing, n of frames ~ 1ms
@@ -196,7 +208,7 @@ def run_batch(sounds, min_scale = 0.3, min_distance = 1, a_scale = 0.5, W_ms = 2
 
     ax.axis([0, 4870, -8, -2])
     ax.set_title(name0+", local_min*0.3")
-    x, smooth, a, t, lmin = thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
+    x, smooth, a, t, lmin = energy_thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
     plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
     write_segments(get_voice_segments(smooth, t, get_segment_indexes(smooth, t, min_len=10)),
         name0+".txt")
@@ -204,7 +216,7 @@ def run_batch(sounds, min_scale = 0.3, min_distance = 1, a_scale = 0.5, W_ms = 2
 
     ax.axis([0, 4870, -8, -2])
     ax.set_title(name1+", local_min*0.3")
-    x, smooth, a, t, lmin = thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
+    x, smooth, a, t, lmin = energy_thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
     plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
     write_segments(
         get_voice_segments(smooth, t, get_segment_indexes(smooth, t, min_len=10)),
@@ -213,25 +225,25 @@ def run_batch(sounds, min_scale = 0.3, min_distance = 1, a_scale = 0.5, W_ms = 2
 
     ax.axis([0, 4870, -8, -2])
     ax.set_title(filelist(audio_path)[0]+", local_min*0")
-    x, smooth, a, t, lmin = thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=0, W_ms=W_ms)
+    x, smooth, a, t, lmin = energy_thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=0, W_ms=W_ms)
     plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
     ax = fig.add_subplot(324)
-    
+
     ax.axis([0, 4870, -8, -2])
     ax.set_title(filelist(audio_path)[1]+", local_min*0")
-    x, smooth, a, t, lmin = thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=0, W_ms=W_ms)
+    x, smooth, a, t, lmin = energy_thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=0, W_ms=W_ms)
     plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
     ax = fig.add_subplot(325)
 
     ax.axis([3500, 4500, -8, -2])
     ax.set_title(filelist(audio_path)[0]+", zoomed in, local_min*0.3")
-    x, smooth, a, t, lmin = thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
+    x, smooth, a, t, lmin = energy_thresholds(sounds[0], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
     plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
     ax = fig.add_subplot(326)
 
     ax.axis([3500, 4500, -8, -2])
     ax.set_title(filelist(audio_path)[1]+", zoomed in, local_min*0.3")
-    x, smooth, a, t, lmin = thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
+    x, smooth, a, t, lmin = energy_thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
     plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
     plt.show()
 

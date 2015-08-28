@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.pyplot as plt
 import math, os, re
-from scipy import signal
+from scipy import signal, arange
 from sys import argv
 try:
-    import scikits.audiolab as al
+    import audiolab as al
 except ImportError:
     al = None
     from scipy.io import wavfile
@@ -15,15 +15,56 @@ audio_path = "audio_assignment/"
 segment_path = "audio_assignment/segments.txt"
 result_path = "audio_assignment/"
 
-#Relative spectral entropy
-def RSE(signal, samplerate=8000):
-    w_len = 10 # frame size
-    signal, frame_size = frames(signal, samplerate, 10)
-    smooth = smooth_signal(signal, 10) #initial smoothing of signal with a 10 frame win
-    fft = np.fft2(smooth)
+#Relative spectral entropy, using running average for mean spectrum
+#Todo: units: dB, temporal
+def RSE_soundsense(signal, samplerate=8000, frame_ms=25):
+    signal = smooth_signal(signal, 10) #initial smoothing of signal with a 10 frame win
+    y, frame_size = frames(signal, samplerate, frame_ms)
+    m = np.zeros(len(y))
+    p = np.zeros(len(y))
+    rse = np.zeros(len(y))
+    n = len(y[0])
+    p[0] = np.linalg.norm(spect_power(y[0], 8000, n))
+    m[0] = p[0]
+    for t in range(1,len(y)):
+        p[t] = np.linalg.norm(spect_power(y[t], 8000, n))
+        m[t] = m[t-1]*0.9 + p[t] * 0.1
+    for t in range(1,len(rse)):
+        rse[t] = np.sum(p[t]*np.log(m[t-1]/p[t]))
+    return rse,p,m
+
+def f0_acf(frames, samplerate=8000):
+    acpeaks = [signal.argrelmax((np.correlate(f,f,mode='full')[len(f)-1:])) for f in frames]
+    f0s = [samplerate/float(x[0][0]) for x in acpeaks if len(x[0])>0]
+    return f0s
+
+def f0_test():
+    pass
+
+#Relative spectral entropy, using mean of 500 preceding frames 
+#wraps around signal endpoints
+def RSE_basu(signal, samplerate=8000, frame_ms=25):
+    signal = smooth_signal(signal, 10) #initial smoothing of signal with a 10 frame win
+    y, frame_size = frames(signal, samplerate, frame_ms)
+    m = np.zeros(len(y))
+    for t in range(len(y)):
+        m[t] = np.average(fft[t-500:t])
+    for t in range(len(smooth)):
+        H[t] = np.sum(fft[t]*np.log(fft[t]/m[t]))
+    return H
+
+def spect_power(frame, rate, size): #size=len(frame)
+    k = arange(size)
+    T = size/rate
+    frq = k/T
+    frq = frq[range(size/2)]
+
+    Y = np.fft.fft(frame)/size
+    Y = Y[range(size/2)]
+    return abs(Y)
 
 #Long term spectral divergence
-def LTSD(signal, samplerate=8000)
+def LTSD(signal, samplerate=8000):
     w_len = 10
     signal, frame_size = frames(signal, samplerate, 10)
 
@@ -48,8 +89,8 @@ def energy_thresholds(x, samplerate=8000, noise_dist=0.9, a_scale=0.5, min_scale
 
 def frames(sound, samplerate=8000, frame_ms=10):
     """ Frames as 2-D numpy.array, no window function """
-    period = 1000.0/samplerate
-    frame_size = int(frame_ms/period)
+    period = samplerate/1000
+    frame_size = int(period*frame_ms)
     padding = frame_size-(len(sound)%frame_size)
     zerolevel = np.average(sound)
     #margin = np.zeros(100*frame_size).clip(min=cliplevel)
@@ -61,7 +102,7 @@ def frames(sound, samplerate=8000, frame_ms=10):
 def log_energy(signal, frame_size=80):
     return np.sum(np.log10((signal**2).clip(1e-30)), 1)/frame_size
 
-def smooth_signal(x, window_len):
+def smooth_signal(x, window_len=10):
     """ Smooth (average) signal with a hanning window """
     w = np.hanning(window_len)
     #padd_y = np.abs(np.amin(x))
@@ -183,7 +224,7 @@ def plot(x, smooth, a, t, lmin, min_len=30, y0=-2, y1=-8, ax=None):
 def filelist(path):
     audio_files = []
     for fn in os.listdir(path):
-        if re.search("(wav|ogg|flac|mp3)$", fn):
+        if re.search(".(wav|ogg|flac|mp3)$", fn):
             audio_files.append(path+fn)
     return audio_files
 

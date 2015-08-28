@@ -4,7 +4,7 @@ from matplotlib.pyplot import *
 from scipy import signal
 import numpy as np
 try:
-    import scikits.audiolab as al
+    import audiolab as al
 except ImportError:
     al = None
     from scipy.io import wavfile

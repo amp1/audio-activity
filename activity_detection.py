@@ -9,6 +9,7 @@ try:
     import audiolab as al
 except ImportError:
     al = None
+    print("Warning: scikits.audiolab not found! Using scipy.io.wavfile")
     from scipy.io import wavfile
 
 audio_path = "audio_assignment/"
@@ -17,21 +18,44 @@ result_path = "audio_assignment/"
 
 #Relative spectral entropy, using running average for mean spectrum
 #Todo: units: dB, temporal
-def RSE_soundsense(signal, samplerate=8000, frame_ms=25):
+def RSE_soundsense(signal, samplerate=8000, frame_ms=25, tail=0.8):
     signal = smooth_signal(signal, 10) #initial smoothing of signal with a 10 frame win
     y, frame_size = frames(signal, samplerate, frame_ms)
     m = np.zeros(len(y))
     p = np.zeros(len(y))
     rse = np.zeros(len(y))
     n = len(y[0])
-    p[0] = np.linalg.norm(spect_power(y[0], 8000, n))
+    p[0] = np.linalg.norm(spect_power(y[0], samplerate, n))
     m[0] = p[0]
     for t in range(1,len(y)):
-        p[t] = np.linalg.norm(spect_power(y[t], 8000, n))
-        m[t] = m[t-1]*0.9 + p[t] * 0.1
+        p[t] = np.linalg.norm(spect_power(y[t], samplerate, n))
+        m[t] = m[t-1]*tail + p[t] * (1-tail)
     for t in range(1,len(rse)):
         rse[t] = np.sum(p[t]*np.log(m[t-1]/p[t]))
     return rse,p,m
+
+def segment_rse(rse, threshold=0.0001, samplerate=8000, frame_ms=25, admission_delay=10):
+    indexes = [0]
+    segments= []
+    rse_max = -1
+    last_voice = admission_delay * -1
+    current_voiced=False
+    x_scale = samplerate/(2*frame_ms)
+    for i in range(len(rse)):
+        if rse[i] > rse_max:
+            rse_max = rse[i]
+        if rse[i] < threshold and not current_voiced:
+            if i-last_voice > admission_delay:
+                indexes.append(i*x_scale)
+            current_voiced = True
+            last_voice = i
+        elif rse[i] > threshold and current_voiced:
+            if i-last_voice > admission_delay:
+                segments.append([indexes[-1], i*x_scale])
+                current_voiced = False
+                indexes.append(i*x_scale)
+                #last_voice = i
+    return indexes, segments
 
 def f0_acf(frames, samplerate=8000):
     acpeaks = [signal.argrelmax((np.correlate(f,f,mode='full')[len(f)-1:])) for f in frames]
@@ -55,7 +79,7 @@ def RSE_basu(signal, samplerate=8000, frame_ms=25):
 
 def spect_power(frame, rate, size): #size=len(frame)
     k = arange(size)
-    T = size/rate
+    T = float(size)/rate
     frq = k/T
     frq = frq[range(size/2)]
 
@@ -71,8 +95,8 @@ def LTSD(signal, samplerate=8000):
 def energy_thresholds(x, samplerate=8000, noise_dist=0.9, a_scale=0.5, min_scale=0.25, W_ms=2000, smoothed_min = False):
     """ Generate log energies, smoothed log energies, their thresholds, local averages and minimums"""
     #x = highpass(x)
-    window_len = 10 # size of window used for initial smoothing, n of frames ~ 1ms
-    x, frame_size = frames(x, samplerate, 10) # split signal to 2-D array with a frame on each row ~1ms
+    window_len = 10
+    x, frame_size = frames(x, samplerate, 10)
     x = log_energy(x, frame_size)
     smooth = smooth_signal(x, 10) #initial smoothing of signal with ~10ms window
     W_len = int(math.floor(W_ms*(1000.0/samplerate)))
@@ -195,7 +219,16 @@ def get_voice_segments(x, t, indexes):
             segments.append((indexes[i-1], indexes[i]))
     return segments
 
-def write_segments(segments, path=None):
+def write_segments(segments, samplerate=8000, path=None):
+    if path == None:
+        path = result_path+"generated_segments.txt"
+    with open(path, "w") as f:
+        for i in range(len(segments)):
+            print("\t".join((str(segments[i][0]/float(samplerate)), str(segments[i][1]/float(samplerate)), str(i))))
+            print("\t".join((str(segments[i][0]/float(samplerate)), str(segments[i][1]/float(samplerate)), str(i))), file=f)
+        #f.close()
+
+def write_segments_logen(segments, path=None):
     if path == None:
         path = result_path+"generated_segments.txt"
     with open(path, "w") as f:

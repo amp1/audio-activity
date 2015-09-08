@@ -57,6 +57,29 @@ def segment_rse(rse, threshold=0.0001, samplerate=8000, frame_ms=25, admission_d
                 #last_voice = i
     return indexes, segments
 
+def segment_rse_adaptive(rse, threshold=0.0001, samplerate=8000, frame_ms=25, admission_delay=10):
+    indexes = [0]
+    segments= []
+    rse_max = -1
+    last_voice = admission_delay * -1
+    current_voiced=False
+    x_scale = samplerate/(2*frame_ms)
+    for i in range(len(rse)):
+        if rse[i] > rse_max:
+            rse_max = rse[i]
+        if rse[i] < rse_max+threshold and not current_voiced:
+            if i-last_voice > admission_delay:
+                indexes.append(i*x_scale)
+            current_voiced = True
+            last_voice = i
+        elif rse[i] > threshold and current_voiced:
+            if i-last_voice > admission_delay:
+                segments.append([indexes[-1], i*x_scale])
+                current_voiced = False
+                indexes.append(i*x_scale)
+                #last_voice = i
+    return indexes, segments
+
 def f0_acf(frames, samplerate=8000):
     acpeaks = [signal.argrelmax((np.correlate(f,f,mode='full')[len(f)-1:])) for f in frames]
     f0s = [samplerate/float(x[0][0]) for x in acpeaks if len(x[0])>0]

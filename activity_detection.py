@@ -85,6 +85,9 @@ def f0_acf(frames, samplerate=8000):
     f0s = [samplerate/float(x[0][0]) for x in acpeaks if len(x[0])>0]
     return f0s
 
+def f0_yin(frames, samplerate=8000):
+    pass
+
 def f0_test():
     pass
 

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import math, os, re
 from scipy import signal, arange
 from sys import argv
+import sigproc as sigutil
 try:
     import audiolab as al
 except ImportError:
@@ -42,7 +43,7 @@ def segment_rse(rse, threshold=0.0001, samplerate=8000, frame_ms=25, admission_d
     current_voiced=False
     x_scale = samplerate/(2*frame_ms)
     for i in range(len(rse)):
-        if rse[i] > rse_max:
+        if rse[i] > rse_msignalax:
             rse_max = rse[i]
         if rse[i] < threshold and not current_voiced:
             if i-last_voice > admission_delay:
@@ -81,15 +82,31 @@ def segment_rse_adaptive(rse, threshold=0.0001, samplerate=8000, frame_ms=25, ad
     return indexes, segments
 
 def f0_acf(frames, samplerate=8000):
-    acpeaks = [signal.argrelmax((np.correlate(f,f,mode='full')[len(f)-1:])) for f in frames]
+    acpeaks = ac_peaks(frames)
     f0s = [samplerate/float(x[0][0]) for x in acpeaks if len(x[0])>0]
     return f0s
 
 def f0_yin(frames, samplerate=8000):
     pass
 
+def ac_peaks(frames):
+    return [signal.argrelmax((np.correlate(f,f,mode='full')[len(f)-1:])) for f in frames]
+
 def f0_test():
     pass
+
+def admission(x, samplerate=8000, frame_ms=25, overlap_ms=5):
+    frame_len = int(samplerate/frame_ms)
+    overlap = int(samplerate/overlap_ms)
+    frames = sigutil.framesig(x, frame_len, overlap, signal.hanning)
+    acpeaks = ac_peaks(frames)
+    f0 = f0_acf(frames)
+    rse = RSE_soundsense(x, samplerate, frame_ms)
+
+    x_timebased = np.linspace(0,len(frames)*frame_len, len(frames))
+    x_rse = np.linspace(0,len(frames)*frame_len, len(frames))
+
+    return {"acpeaks":acpeaks, "f0":f0, "rse":rse}
 
 #Relative spectral entropy, using mean of 500 preceding frames 
 #wraps around signal endpoints

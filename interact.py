@@ -2,7 +2,10 @@ from __future__ import print_function
 import activity_detection as ad
 from matplotlib.pyplot import *
 from scipy import signal
+import sigproc as sigutil
 import numpy as np
+from aubio import source, pitch, freqtomidi
+
 try:
     import audiolab as al
 except ImportError:

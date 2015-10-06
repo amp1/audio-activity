@@ -9,10 +9,9 @@ def argv_soundfile():
     return sys.argv[1]
 
 #yin pitch contours and confidences, 4096 window
-def pitches(filename):
-    downsample = 1
-    samplerate = 44100 / downsample
-    if len( sys.argv ) > 2: samplerate = int(sys.argv[2])
+def pitches(filename, samplerate=None, downsample=1):
+    if samplerate is None:
+        samplerate = 44100 / downsample
 
     win_s = 4096 / downsample # fft size
     hop_s = 512  / downsample # hop size

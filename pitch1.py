@@ -1,5 +1,5 @@
 import sys
-from aubio import source, pitch, freqtomidi
+import aubio
 
 #from aubio examples
 def argv_soundfile():
@@ -16,12 +16,12 @@ def pitches(filename, samplerate=None, downsample=1):
     win_s = 4096 / downsample # fft size
     hop_s = 512  / downsample # hop size
 
-    s = source(filename, samplerate, hop_s)
+    s = aubio.source(filename, samplerate, hop_s)
     samplerate = s.samplerate
 
     tolerance = 0.8
 
-    pitch_o = pitch("yin", win_s, hop_s, samplerate)
+    pitch_o = aubio.pitch("yin", win_s, hop_s, samplerate)
     pitch_o.set_unit("midi")
     pitch_o.set_tolerance(tolerance)
 

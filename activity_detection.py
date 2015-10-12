@@ -6,8 +6,13 @@ import math, os, re
 from scipy import signal, arange
 from sys import argv
 import sigproc as sigutil
+from sklearn.preprocessing import normalize
+
 try:
-    import audiolab as al
+    try:
+        import scikits.audiolab as al
+    except ImportError:
+        import audiolab as al
 except ImportError:
     al = None
     print("Warning: scikits.audiolab not found! Using scipy.io.wavfile")
@@ -35,51 +40,13 @@ def RSE_soundsense(signal, samplerate=8000, frame_ms=25, tail=0.8):
         rse[t] = np.sum(p[t]*np.log(m[t-1]/p[t]))
     return rse,p,m
 
-def segment_rse(rse, threshold=0.0001, samplerate=8000, frame_ms=25, admission_delay=10):
-    indexes = [0]
-    segments= []
-    rse_max = -1
-    last_voice = admission_delay * -1
-    current_voiced=False
-    x_scale = samplerate/(2*frame_ms)
-    for i in range(len(rse)):
-        if rse[i] > rse_msignalax:
-            rse_max = rse[i]
-        if rse[i] < threshold and not current_voiced:
-            if i-last_voice > admission_delay:
-                indexes.append(i*x_scale)
-            current_voiced = True
-            last_voice = i
-        elif rse[i] > threshold and current_voiced:
-            if i-last_voice > admission_delay:
-                segments.append([indexes[-1], i*x_scale])
-                current_voiced = False
-                indexes.append(i*x_scale)
-                #last_voice = i
-    return indexes, segments
-
-def segment_rse_adaptive(rse, threshold=0.0001, samplerate=8000, frame_ms=25, admission_delay=10):
-    indexes = [0]
-    segments= []
-    rse_max = -1
-    last_voice = admission_delay * -1
-    current_voiced=False
-    x_scale = samplerate/(2*frame_ms)
-    for i in range(len(rse)):
-        if rse[i] > rse_max:
-            rse_max = rse[i]
-        if rse[i] < rse_max+threshold and not current_voiced:
-            if i-last_voice > admission_delay:
-                indexes.append(i*x_scale)
-            current_voiced = True
-            last_voice = i
-        elif rse[i] > threshold and current_voiced:
-            if i-last_voice > admission_delay:
-                segments.append([indexes[-1], i*x_scale])
-                current_voiced = False
-                indexes.append(i*x_scale)
-                #last_voice = i
-    return indexes, segments
+def spectral_entropy(frames, window_len):
+    w = np.hanning(window_len)
+    for frame in frames:
+        windowed = signal.convolve(frame, w, mode='same')
+        spectrum = np.fft(windowed)
+        p = np.linalg.norm(spectrum)
+    #return np.sum([p[i]*np.log(p[i]))
 
 def f0_acf(frames, samplerate=8000):
     acpeaks = ac_peaks(frames)
@@ -129,6 +96,14 @@ def spect_power(frame, rate, size): #size=len(frame)
     Y = np.fft.fft(frame)/size
     Y = Y[range(size/2)]
     return abs(Y)
+
+def entropy(p):
+    return -1*np.sum(p*np.log(p))
+
+def normalized(x, axis=0):
+    norm1 = x / np.linalg.norm(x)
+    norm2 = normalize(x[:,np.newaxis], axis=axis).ravel()
+    return
 
 #Long term spectral divergence
 def LTSD(signal, samplerate=8000):
@@ -317,6 +292,54 @@ def read_file(path):
         except ValueError:
             return None
 
+def segment_rse(rse, threshold=0.0001, samplerate=8000, frame_ms=25, admission_delay=10):
+    indexes = [0]
+    segments= []
+    rse_max = -1
+    last_voice = admission_delay * -1
+    current_voiced=False
+    x_scale = samplerate/(2*frame_ms)
+    for i in range(len(rse)):
+        if rse[i] > rse_msignalax:
+            rse_max = rse[i]
+        if rse[i] < threshold and not current_voiced:
+            if i-last_voice > admission_delay:
+                indexes.append(i*x_scale)
+            current_voiced = True
+            last_voice = i
+        elif rse[i] > threshold and current_voiced:
+            if i-last_voice > admission_delay:
+                segments.append([indexes[-1], i*x_scale])
+                current_voiced = False
+                indexes.append(i*x_scale)
+                #last_voice = i
+    return indexes, segments
+
+def segment_rse_adaptive(rse, threshold=0.0001, samplerate=8000, frame_ms=25, admission_delay=10):
+    indexes = [0]
+    segments= []
+    rse_max = -1
+    last_voice = admission_delay * -1
+    current_voiced=False
+    x_scale = samplerate/(2*frame_ms)
+    for i in range(len(rse)):
+        if rse[i] > rse_max:
+            rse_max = rse[i]
+        if rse[i] < rse_max+threshold and not current_voiced:
+            if i-last_voice > admission_delay:
+                indexes.append(i*x_scale)
+            current_voiced = True
+            last_voice = i
+        elif rse[i] > threshold and current_voiced:
+            if i-last_voice > admission_delay:
+                segments.append([indexes[-1], i*x_scale])
+                current_voiced = False
+                indexes.append(i*x_scale)
+                #last_voice = i
+    return indexes, segments
+
+
+
 def run_batch(sounds, min_scale = 0.3, min_distance = 1, a_scale = 0.5, W_ms = 2000, min_len = 30):
     fig = plt.figure()
     ax = fig.add_subplot(321)
@@ -373,3 +396,5 @@ if __name__ == "__main__":
         if sound != None:
             sounds.append(sound)
     run_batch(sounds)
+
+

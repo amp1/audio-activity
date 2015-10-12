@@ -7,7 +7,10 @@ import numpy as np
 from aubio import source, pitch, freqtomidi
 
 try:
-    import audiolab as al
+    try:
+        import scikits.audiolab as al
+    except ImportError:
+        import audiolab as al
 except ImportError:
     al = None
     from scipy.io import wavfile

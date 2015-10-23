@@ -7,6 +7,7 @@ from scipy import signal, arange
 from sys import argv
 import sigproc as sigutil
 from sklearn.preprocessing import normalize
+import yin
 
 try:
     try:
@@ -40,12 +41,18 @@ def RSE_soundsense(signal, samplerate=8000, frame_ms=25, tail=0.8):
         rse[t] = np.sum(p[t]*np.log(m[t-1]/p[t]))
     return rse,p,m
 
-def spectral_entropy(frames, window_len):
-    w = np.hanning(window_len)
-    for frame in frames:
+def xspace(samples, vectorlen, samplerate):
+    pass
+
+#RSE spectrum frames
+def normalized_spectrum(frames, samplerate=8000):
+    w = np.hanning(len(frames[0]))
+    res = []
+    for i,frame in enumerate(frames):
         windowed = signal.convolve(frame, w, mode='same')
-        spectrum = np.fft(windowed)
-        p = np.linalg.norm(spectrum)
+        spectrum = spect_power(windowed, samplerate, len(frame))
+        res.append(spectrum/np.linalg.norm(spectrum))
+    return np.asarray(res)
     #return np.sum([p[i]*np.log(p[i]))
 
 def f0_acf(frames, samplerate=8000):
@@ -53,7 +60,7 @@ def f0_acf(frames, samplerate=8000):
     f0s = [samplerate/float(x[0][0]) for x in acpeaks if len(x[0])>0]
     return f0s
 
-def f0_yin(frames, samplerate=8000):
+def f0_yin(soundfile, samplerate=8000):
     pass
 
 def ac_peaks(frames):
@@ -129,6 +136,13 @@ def energy_thresholds(x, samplerate=8000, noise_dist=0.9, a_scale=0.5, min_scale
         t[i] = min_a-(min_scale*min_a)+(min_scale*lmin[i])+max(noise_dist, a_scale*(a[i]-lmin[i]))
     return x, smooth, a, t, lmin
 
+def ms(samples):
+    pass
+
+def samples(ms):
+    pass
+
+#simple non-overlapping framing of signal
 def frames(sound, samplerate=8000, frame_ms=10):
     """ Frames as 2-D numpy.array, no window function """
     period = samplerate/1000
@@ -261,16 +275,16 @@ def plot(x, smooth, a, t, lmin, min_len=30, y0=-2, y1=-8, ax=None):
     my_segments = get_segment_indexes(smooth, t, min_len)
     p.vlines(my_segments, y0, y1, color='orange')
     segments = []
-    with open(segment_path) as sf:
-        for l in sf.readlines():
-            l = l.split('\t')
-            segments.append(float(l[0])*100)
-            segments.append(float(l[1])*100)
-        p.vlines(segments, y0, y1, color='black', linestyles='dashed')
-    p.plot(smooth, color='blue')
-    p.plot(t, color='red')
-    p.plot(lmin, color='pink')
-    p.plot(a, color='lightgreen')
+with open(segment_path) as sf:
+    for l in sf.readlines():
+        l = l.split('\t')
+        segments.append(float(l[0])*100)
+        segments.append(float(l[1])*100)
+    p.vlines(segments, y0, y1, color='black', linestyles='dashed')
+p.plot(smooth, color='blue')
+p.plot(t, color='red')
+p.plot(lmin, color='pink')
+p.plot(a, color='lightgreen')
 
 def filelist(path):
     audio_files = []

@@ -41,6 +41,7 @@ def RSE_soundsense(signal, samplerate=8000, frame_ms=25, tail=0.8):
         rse[t] = np.sum(p[t]*np.log(m[t-1]/p[t]))
     return rse,p,m
 
+#create linear values for x-axis
 def xspace(samples, vectorlen, samplerate):
     pass
 
@@ -51,7 +52,12 @@ def normalized_spectrum(frames, samplerate=8000):
     for i,frame in enumerate(frames):
         windowed = signal.convolve(frame, w, mode='same')
         spectrum = spect_power(windowed, samplerate, len(frame))
-        res.append(spectrum/np.linalg.norm(spectrum))
+        norm = np.linalg.norm(spectrum)
+        if norm == 0: #Q: can I do this?
+            #res.append(np.zeros_like(spectrum)+0.0001)
+            res.append(spectrum+0.0001)
+        else:
+            res.append(spectrum/np.linalg.norm(spectrum))
     return np.asarray(res)
     #return np.sum([p[i]*np.log(p[i]))
 
@@ -110,7 +116,7 @@ def entropy(p):
 def normalized(x, axis=0):
     norm1 = x / np.linalg.norm(x)
     norm2 = normalize(x[:,np.newaxis], axis=axis).ravel()
-    return
+    #return what
 
 #Long term spectral divergence
 def LTSD(signal, samplerate=8000):
@@ -155,8 +161,8 @@ def frames(sound, samplerate=8000, frame_ms=10):
     #sound = np.append(sound, margin)
     return np.reshape(sound, (-1, frame_size)), frame_size
 
-def log_energy(signal, frame_size=80):
-    return np.sum(np.log10((signal**2).clip(1e-30)), 1)/frame_size
+def log_energy(signal, n_samples=80):
+    return np.sum(np.log10((signal**2).clip(1e-30)), 1)/n_samples
 
 def smooth_signal(x, window_len=10):
     """ Smooth (average) signal with a hanning window """
@@ -226,6 +232,21 @@ def get_segment_indexes(x, t, min_len=30):
                 indexes.append(i)
     return indexes
 
+def entropy_segment_indexes(H, t, min_len=30):
+    ranges = []
+    segment=[]
+    for i in range(0, len(H)):
+        if H[i]<t:
+            if len(segment) == 0 or len(segment) == 1:
+                segment.append(i)
+            elif len(segment) == 2:
+                segment[1] = i
+        else:
+            if len(segment) == 2:
+                ranges.append(segment)
+            segment = []
+    return ranges
+
 def validate_segment(x, t, segment, indexes, min_len=30, validate=True):
     if validate:
         if(len(segment)==2):
@@ -269,22 +290,45 @@ def write_segments_logen(segments, path=None):
 
 def plot(x, smooth, a, t, lmin, min_len=30, y0=-2, y1=-8, ax=None):
     if ax == None:
-        p = plt
+        P = plt
     else:
         p = ax
-    my_segments = get_segment_indexes(smooth, t, min_len)
+    my_indexes = energy_indexes(smooth, t, min_len)
     p.vlines(my_segments, y0, y1, color='orange')
     segments = []
-with open(segment_path) as sf:
-    for l in sf.readlines():
-        l = l.split('\t')
-        segments.append(float(l[0])*100)
-        segments.append(float(l[1])*100)
+    segments = read_segment_file(segment_path)
     p.vlines(segments, y0, y1, color='black', linestyles='dashed')
-p.plot(smooth, color='blue')
-p.plot(t, color='red')
-p.plot(lmin, color='pink')
-p.plot(a, color='lightgreen')
+    p.plot(smooth, color='blue')
+    p.plot(t, color='red')
+    p.plot(lmin, color='pink')
+    p.plot(a, color='lightgreen')
+
+def segments_to_seconds(segments, rate=8000, fw=64):
+    return [[index_to_seconds(s[0], rate, fw), index_to_seconds(s[1], rate, fw)] for s in segments]
+
+def index_to_seconds(x, samplerate=8000, frame_width=64):
+    ms_samples = samplerate/1000
+    return float(x)*ms_samples*frame_width/samplerate
+
+def plot_segments(se_segments, validfile, samplerate=8000, frame_width=64):
+    #ms_samples = samplerate/1000
+    p = plt
+    p.vlines(indexes(se_segments), 10, 0, color='orange')
+    segments = read_segment_file(validfile)
+    p.vlines(indexes(segments), 10, 0, color='black', linestyles='dashed')
+
+def indexes(segments):
+    return [index for segment in segments for index in segment]
+
+def read_segment_file(path):
+    with open(path) as sf:
+        segments = []
+        for l in sf.readlines():
+            l = l.split('\t')
+            segments.append([float(l[0]), float(l[1])])
+        return segments
+    print("Failed reading"+path)
+    return None
 
 def filelist(path):
     audio_files = []
@@ -353,7 +397,6 @@ def segment_rse_adaptive(rse, threshold=0.0001, samplerate=8000, frame_ms=25, ad
     return indexes, segments
 
 
-
 def run_batch(sounds, min_scale = 0.3, min_distance = 1, a_scale = 0.5, W_ms = 2000, min_len = 30):
     fig = plt.figure()
     ax = fig.add_subplot(321)
@@ -371,7 +414,7 @@ def run_batch(sounds, min_scale = 0.3, min_distance = 1, a_scale = 0.5, W_ms = 2
     ax.axis([0, 4870, -8, -2])
     ax.set_title(name1+", local_min*0.3")
     x, smooth, a, t, lmin = energy_thresholds(sounds[1], noise_dist=min_distance, a_scale=a_scale, min_scale=min_scale, W_ms=W_ms)
-    plot(x, smooth, a, t, lmin, min_len=min_len, ax=ax)
+    plot(x, smooth, a, t, lmin, min_len=min_len, ax=a)
     write_segments(
         get_voice_segments(smooth, t, get_segment_indexes(smooth, t, min_len=10)),
         name1+".txt")
